@@ -17,8 +17,9 @@ const App = () => {
     const rendererRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
-    const particlesRef = useRef({ core: null, ring: null });
+    const particlesRef = useRef({ core: null, ring: null, wave: null });
     const originalRingPositions = useRef(null);
+    const originalWavePositions = useRef(null);
     const requestRef = useRef();
 
     // Smoothing states
@@ -85,7 +86,7 @@ const App = () => {
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
-        // 1. Core Sphere
+        // 1. Core Sphere (White/Inner)
         const coreGeometry = new THREE.BufferGeometry();
         const coreCount = 3000;
         const corePos = new Float32Array(coreCount * 3);
@@ -108,7 +109,34 @@ const App = () => {
         const coreParticles = new THREE.Points(coreGeometry, coreMaterial);
         scene.add(coreParticles);
 
-        // 2. Outer Ring
+        // 2. BLUE VOICE WAVE LAYER (Frequency Mapped - Between circles)
+        const waveCount = 5000;
+        const waveGeometry = new THREE.BufferGeometry();
+        const wavePos = new Float32Array(waveCount * 3);
+        const waveOrgs = new Float32Array(waveCount * 3);
+        for (let i = 0; i < waveCount; i++) {
+            const angle = (i / waveCount) * Math.PI * 2;
+            const radius = 2.0;
+            wavePos[i * 3] = Math.cos(angle) * radius;
+            wavePos[i * 3 + 1] = Math.sin(angle) * radius;
+            wavePos[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+            waveOrgs[i * 3] = wavePos[i * 3];
+            waveOrgs[i * 3 + 1] = wavePos[i * 3 + 1];
+            waveOrgs[i * 3 + 2] = wavePos[i * 3 + 2];
+        }
+        originalWavePositions.current = waveOrgs;
+        waveGeometry.setAttribute('position', new THREE.BufferAttribute(wavePos, 3));
+        const waveMaterial = new THREE.PointsMaterial({
+            color: 0x3399ff,
+            size: 0.015,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending
+        });
+        const waveParticles = new THREE.Points(waveGeometry, waveMaterial);
+        scene.add(waveParticles);
+
+        // 3. Outer Ring (Golden)
         const ringGeometry = new THREE.BufferGeometry();
         const ringCount = 8000;
         const ringPos = new Float32Array(ringCount * 3);
@@ -135,7 +163,7 @@ const App = () => {
         const ringParticles = new THREE.Points(ringGeometry, ringMaterial);
         scene.add(ringParticles);
 
-        particlesRef.current = { core: coreParticles, ring: ringParticles };
+        particlesRef.current = { core: coreParticles, ring: ringParticles, wave: waveParticles };
 
         const handleResize = () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -149,7 +177,7 @@ const App = () => {
             requestRef.current = requestAnimationFrame(animate);
 
             let lowFreq = 0, midFreq = 0, highFreq = 0;
-            const listening = isListening; // Capture current state
+            const listening = isListening;
 
             if (listening && analyserRef.current && dataArrayRef.current) {
                 analyserRef.current.getByteFrequencyData(dataArrayRef.current);
@@ -168,23 +196,44 @@ const App = () => {
             const m = smoothedMids.current;
             const hp = smoothedHighs.current;
 
-            // 1. CORE ANIMATION
-            coreParticles.rotation.y += 0.003 + p * 0.05;
+            // 1. CORE ANIMATION - SLOW ROTATE, NO SPIN
+            coreParticles.rotation.y += 0.003; // Constant slow rotation
             coreParticles.rotation.x += 0.001;
-            const coreScale = 1 + p * 0.6;
+            const coreScale = 1 + p * 0.4;
             coreParticles.scale.set(coreScale, coreScale, coreScale);
+            coreMaterial.opacity = 0.4 + p * 0.4;
+            coreMaterial.color.setHex(listening && p > 0.02 ? 0xccffff : 0xffffff);
 
-            // Color switching
+            // 2. BLUE WAVE ANIMATION (Middle) - Highly Reactive
+            waveParticles.rotation.y += 0.004; // Slow rotation
+            const wavePositions = waveParticles.geometry.attributes.position.array;
+            const waveOrgs = originalWavePositions.current;
+
             if (listening && p > 0.01) {
-                coreMaterial.color.setHSL(0.55 + m * 0.1, 0.8, 0.5 + hp * 0.2);
-                coreMaterial.opacity = 0.5 + p * 0.5;
+                waveMaterial.opacity += (0.8 - waveMaterial.opacity) * 0.1;
+                // Spectral mapping
+                for (let i = 0; i < waveCount; i++) {
+                    const idx = i * 3;
+                    const angle = Math.atan2(waveOrgs[idx + 1], waveOrgs[idx]);
+                    const rBase = Math.sqrt(waveOrgs[idx] * waveOrgs[idx] + waveOrgs[idx + 1] * waveOrgs[idx + 1]);
+
+                    // Map index to frequency bin (using about 40% of spectrum for visible waves)
+                    const freqIdx = Math.floor((i / waveCount) * (dataArrayRef.current?.length || 0) * 0.3);
+                    const magnitude = (dataArrayRef.current ? dataArrayRef.current[freqIdx] : 0) / 255;
+
+                    const displacement = magnitude * 1.5;
+                    wavePositions[idx] = Math.cos(angle) * (rBase + displacement);
+                    wavePositions[idx + 1] = Math.sin(angle) * (rBase + displacement);
+                    wavePositions[idx + 2] = waveOrgs[idx + 2] + Math.sin(angle * 10 + wavePhase.current * 5) * magnitude * 2;
+                }
+                waveParticles.geometry.attributes.position.needsUpdate = true;
+                waveMaterial.color.setHSL(0.58 + m * 0.05, 0.9, 0.6);
             } else {
-                coreMaterial.color.setHex(0xffffff);
-                coreMaterial.opacity = 0.4;
+                waveMaterial.opacity *= 0.9;
             }
 
-            // 2. RING ANIMATION
-            ringParticles.rotation.z -= 0.002 + hp * 0.03;
+            // 3. RING ANIMATION - SLOW ROTATE, NO SPIN
+            ringParticles.rotation.z -= 0.002; // Constant slow rotation
             const posAttr = ringParticles.geometry.attributes.position;
             const positions = posAttr.array;
             const originals = originalRingPositions.current;
@@ -200,14 +249,14 @@ const App = () => {
                 const angle = Math.atan2(y, x);
                 const dist = Math.sqrt(x * x + y * y);
 
-                // Ripple effect
-                const ripple = Math.sin(dist * 1.5 - wavePhase.current * 5) * p * 0.4;
-                const wave = Math.cos(angle * 5 + wavePhase.current * 3) * hp * 0.2;
+                // Ripple effect (Positional displacement, not rotation speed)
+                const ripple = Math.sin(dist * 1.5 - wavePhase.current * 4) * p * 0.4;
+                const wave = Math.cos(angle * 5 + wavePhase.current * 2) * hp * 0.2;
                 const factor = 1 + ripple + wave;
 
                 positions[idx] = x * factor;
                 positions[idx + 1] = y * factor;
-                positions[idx + 2] = z + Math.sin(angle * 4 + wavePhase.current * 5) * hp * 1.5;
+                positions[idx + 2] = z + Math.sin(angle * 4 + wavePhase.current * 3) * hp * 1.0;
             }
             posAttr.needsUpdate = true;
 
@@ -233,8 +282,7 @@ const App = () => {
                 containerRef.current?.removeChild(renderer.domElement);
             }
         };
-    }, [isListening]); // It still needs isListening to update the closure in animate? 
-    // Actually, capture isListening at start of animate.
+    }, [isListening]);
 
     return (
         <div className="relative w-full h-screen bg-[#060606] overflow-hidden flex flex-col items-center justify-between text-white font-sans select-none">
