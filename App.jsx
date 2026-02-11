@@ -109,17 +109,17 @@ const App = () => {
         const coreParticles = new THREE.Points(coreGeometry, coreMaterial);
         scene.add(coreParticles);
 
-        // 2. BLUE VOICE WAVE LAYER (Frequency Mapped - Between circles)
-        const waveCount = 5000;
+        // 2. BLUE VOICE WAVE LAYER (Particulated Glow - Static Orientation)
+        const waveCount = 8000; // Increased for richer particulated effect
         const waveGeometry = new THREE.BufferGeometry();
         const wavePos = new Float32Array(waveCount * 3);
         const waveOrgs = new Float32Array(waveCount * 3);
         for (let i = 0; i < waveCount; i++) {
-            const angle = (i / waveCount) * Math.PI * 2;
-            const radius = 2.0;
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 1.9 + (Math.random() - 0.5) * 0.4; // Distributed "fuzzy" radius
             wavePos[i * 3] = Math.cos(angle) * radius;
             wavePos[i * 3 + 1] = Math.sin(angle) * radius;
-            wavePos[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+            wavePos[i * 3 + 2] = (Math.random() - 0.5) * 0.8; // Added some depth
             waveOrgs[i * 3] = wavePos[i * 3];
             waveOrgs[i * 3 + 1] = wavePos[i * 3 + 1];
             waveOrgs[i * 3 + 2] = wavePos[i * 3 + 2];
@@ -128,10 +128,11 @@ const App = () => {
         waveGeometry.setAttribute('position', new THREE.BufferAttribute(wavePos, 3));
         const waveMaterial = new THREE.PointsMaterial({
             color: 0x3399ff,
-            size: 0.015,
+            size: 0.02,
             transparent: true,
             opacity: 0,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
         });
         const waveParticles = new THREE.Points(waveGeometry, waveMaterial);
         scene.add(waveParticles);
@@ -196,44 +197,49 @@ const App = () => {
             const m = smoothedMids.current;
             const hp = smoothedHighs.current;
 
-            // 1. CORE ANIMATION - SLOW ROTATE, NO SPIN
-            coreParticles.rotation.y += 0.003; // Constant slow rotation
+            // 1. CORE ANIMATION - Constant slow rotation
+            coreParticles.rotation.y += 0.003;
             coreParticles.rotation.x += 0.001;
             const coreScale = 1 + p * 0.4;
             coreParticles.scale.set(coreScale, coreScale, coreScale);
             coreMaterial.opacity = 0.4 + p * 0.4;
             coreMaterial.color.setHex(listening && p > 0.02 ? 0xccffff : 0xffffff);
 
-            // 2. BLUE WAVE ANIMATION (Middle) - Highly Reactive
-            waveParticles.rotation.y += 0.004; // Slow rotation
+            // 2. BLUE WAVE ANIMATION (Middle) - Particulated Glow, NON-SPINNING
+            // We do NOT update waveParticles.rotation
             const wavePositions = waveParticles.geometry.attributes.position.array;
             const waveOrgs = originalWavePositions.current;
 
             if (listening && p > 0.01) {
-                waveMaterial.opacity += (0.8 - waveMaterial.opacity) * 0.1;
-                // Spectral mapping
+                waveMaterial.opacity += (0.9 - waveMaterial.opacity) * 0.05;
+                // Particulated spectral mapping
                 for (let i = 0; i < waveCount; i++) {
                     const idx = i * 3;
+                    // Fixed angle for each particle since it doesn't spin
                     const angle = Math.atan2(waveOrgs[idx + 1], waveOrgs[idx]);
                     const rBase = Math.sqrt(waveOrgs[idx] * waveOrgs[idx] + waveOrgs[idx + 1] * waveOrgs[idx + 1]);
 
-                    // Map index to frequency bin (using about 40% of spectrum for visible waves)
-                    const freqIdx = Math.floor((i / waveCount) * (dataArrayRef.current?.length || 0) * 0.3);
+                    const freqIdx = Math.floor((Math.abs(angle) / Math.PI) * (dataArrayRef.current?.length || 0) * 0.4);
                     const magnitude = (dataArrayRef.current ? dataArrayRef.current[freqIdx] : 0) / 255;
 
-                    const displacement = magnitude * 1.5;
+                    // Displacement + static shimmer
+                    const displacement = magnitude * 1.8 * (1 + Math.sin(i * 0.1 + wavePhase.current) * 0.1);
                     wavePositions[idx] = Math.cos(angle) * (rBase + displacement);
                     wavePositions[idx + 1] = Math.sin(angle) * (rBase + displacement);
-                    wavePositions[idx + 2] = waveOrgs[idx + 2] + Math.sin(angle * 10 + wavePhase.current * 5) * magnitude * 2;
+                    wavePositions[idx + 2] = waveOrgs[idx + 2] + Math.cos(i + wavePhase.current * 2) * magnitude * 1.5;
                 }
                 waveParticles.geometry.attributes.position.needsUpdate = true;
-                waveMaterial.color.setHSL(0.58 + m * 0.05, 0.9, 0.6);
+
+                // Pulsating glow color
+                waveMaterial.color.setHSL(0.58 + Math.sin(wavePhase.current * 0.5) * 0.02, 0.9, 0.5 + m * 0.3);
+                waveMaterial.size = 0.015 + magnitudeRef_dummy * 0.02; // We'll use p for general size
+                waveMaterial.size = 0.015 + p * 0.03;
             } else {
-                waveMaterial.opacity *= 0.9;
+                waveMaterial.opacity *= 0.85;
             }
 
-            // 3. RING ANIMATION - SLOW ROTATE, NO SPIN
-            ringParticles.rotation.z -= 0.002; // Constant slow rotation
+            // 3. RING ANIMATION - Constant slow rotation
+            ringParticles.rotation.z -= 0.002;
             const posAttr = ringParticles.geometry.attributes.position;
             const positions = posAttr.array;
             const originals = originalRingPositions.current;
@@ -249,7 +255,6 @@ const App = () => {
                 const angle = Math.atan2(y, x);
                 const dist = Math.sqrt(x * x + y * y);
 
-                // Ripple effect (Positional displacement, not rotation speed)
                 const ripple = Math.sin(dist * 1.5 - wavePhase.current * 4) * p * 0.4;
                 const wave = Math.cos(angle * 5 + wavePhase.current * 2) * hp * 0.2;
                 const factor = 1 + ripple + wave;
@@ -260,7 +265,6 @@ const App = () => {
             }
             posAttr.needsUpdate = true;
 
-            // Ring Color Switching
             if (listening && p > 0.01) {
                 ringMaterial.color.setHSL(0.58 + m * 0.05, 0.9, 0.6);
                 ringMaterial.opacity = 0.3 + hp * 0.7;
