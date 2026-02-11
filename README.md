@@ -51,11 +51,12 @@ voice-assistance/
 - **Audio Analysis**: Real-time frequency analysis of microphone input
 - **Dynamic Glow Effects**: Responsive background glows that react to voice
 - **Modular Architecture**: Clean separation of concerns with custom hooks and utilities
+- **AI Speech Recognition**: OpenAI Whisper integration for speech-to-text
+- **Multi-language Support**: 99+ languages supported via Whisper
 
 ### Planned Features
 - Voice command processing
-- AI-powered voice assistance
-- Speech-to-text integration
+- Real-time transcription display
 - Custom voice commands
 - Data persistence
 
@@ -99,6 +100,9 @@ The backend will be available at `http://localhost:3001`
 ### Backend
 - **Node.js** - Runtime environment
 - **Express** - Web framework
+- **Python 3.11** - AI service runtime
+- **OpenAI Whisper** - Speech recognition
+- **PyTorch** - ML framework for Whisper
 - **CORS** - Cross-origin resource sharing
 - **dotenv** - Environment variable management
 
@@ -108,6 +112,7 @@ See the `docs/` directory for detailed documentation:
 - [Setup Guide](./docs/SETUP.md) - Detailed setup instructions
 - [API Documentation](./docs/API.md) - Backend API endpoints
 - [Architecture](./docs/ARCHITECTURE.md) - System architecture details
+- [Whisper Integration](./docs/WHISPER_INTEGRATION.md) - AI speech recognition setup
 
 ## 🤝 Contributing
 

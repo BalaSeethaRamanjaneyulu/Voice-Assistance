@@ -1,0 +1,15 @@
+# OpenAI Whisper and dependencies
+openai-whisper==20250625
+torch>=2.0.0
+numpy>=1.23.0
+tqdm>=4.65.0
+more-itertools
+tiktoken
+numba
+
+# Audio processing
+# ffmpeg should be installed system-wide
+
+# Optional: For better audio format support
+# soundfile
+# librosa

@@ -49,8 +49,10 @@ The Voice Assistance application follows a modern client-server architecture wit
 │  │  └──────────┘  └─────────────┘  └───────┬──────┘   │  │
 │  │                                          │          │  │
 │  │                   ┌──────────────────────▼──────┐   │  │
-│  │                   │   External AI Services      │   │  │
-│  │                   │  (Future Integration)       │   │  │
+│  │                   │   AI Services (Whisper)     │   │  │
+│  │                   │   - Speech Recognition      │   │  │
+│  │                   │   - Language Detection      │   │  │
+│  │                   │   - Python Service Layer    │   │  │
 │  │                   └─────────────────────────────┘   │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -148,6 +150,7 @@ HTTP Request
 | `/controllers` | Request handlers | audioController.js |
 | `/routes` | API routes | api.js |
 | `/services` | Business logic | audioService.js |
+| `/ai-services` | AI/ML integrations | whisper_service.py, whisperBridge.js |
 | `/middleware` | Custom middleware | auth.js (future) |
 | `/config` | Configuration | config.js |
 | `/models` | Data models | audioModel.js (future) |

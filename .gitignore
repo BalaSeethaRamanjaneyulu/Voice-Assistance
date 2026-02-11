@@ -2,6 +2,18 @@
 node_modules/
 */node_modules/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/env/
+*.egg-info/
+dist/
+build/
+
 # Environment variables
 .env
 .env.local
@@ -23,6 +35,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Whisper models (downloaded at runtime)
+backend/ai-services/whisper/.models/
+*.pt
 
 # Editor directories and files
 .vscode/*
