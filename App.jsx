@@ -28,6 +28,10 @@ const App = () => {
     const smoothedMids = useRef(0);
     const wavePhase = useRef(0);
 
+    // Glow element refs
+    const glowPrimaryRef = useRef(null);
+    const glowSecondaryRef = useRef(null);
+
     const startAudio = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -175,49 +179,56 @@ const App = () => {
             coreParticles.scale.set(coreScale, coreScale, coreScale);
 
             // Color switching
-            if (listening && p > 0.01) {
+            if (listening) {
+                // Variations of blue based on audio
                 coreMaterial.color.setHSL(0.55 + m * 0.1, 0.8, 0.5 + hp * 0.2);
-                coreMaterial.opacity = 0.5 + p * 0.5;
+                coreMaterial.opacity = 0.6 + p * 0.4;
             } else {
                 coreMaterial.color.setHex(0xffffff);
                 coreMaterial.opacity = 0.4;
             }
 
-            // 2. RING ANIMATION
-            ringParticles.rotation.z -= 0.002 + hp * 0.03;
-            const posAttr = ringParticles.geometry.attributes.position;
-            const positions = posAttr.array;
-            const originals = originalRingPositions.current;
+            // 2. RING ANIMATION - Constant slow rotation, no voice reactivity
+            ringParticles.rotation.z -= 0.002;
 
-            wavePhase.current += 0.02 + p * 0.05;
-
-            for (let i = 0; i < ringCount; i++) {
-                const idx = i * 3;
-                const x = originals[idx];
-                const y = originals[idx + 1];
-                const z = originals[idx + 2];
-
-                const angle = Math.atan2(y, x);
-                const dist = Math.sqrt(x * x + y * y);
-
-                // Ripple effect
-                const ripple = Math.sin(dist * 1.5 - wavePhase.current * 5) * p * 0.4;
-                const wave = Math.cos(angle * 5 + wavePhase.current * 3) * hp * 0.2;
-                const factor = 1 + ripple + wave;
-
-                positions[idx] = x * factor;
-                positions[idx + 1] = y * factor;
-                positions[idx + 2] = z + Math.sin(angle * 4 + wavePhase.current * 5) * hp * 1.5;
-            }
-            posAttr.needsUpdate = true;
-
-            // Ring Color Switching
-            if (listening && p > 0.01) {
-                ringMaterial.color.setHSL(0.58 + m * 0.05, 0.9, 0.6);
-                ringMaterial.opacity = 0.3 + hp * 0.7;
+            // Ring color switching
+            if (listening) {
+                ringMaterial.color.setHex(0x3399ff);
+                ringMaterial.opacity = 0.5 + p * 0.3;
             } else {
                 ringMaterial.color.setHex(0xffbb44);
                 ringMaterial.opacity = 0.3;
+            }
+
+            // 3. UPDATE BACKGROUND GLOWS DIRECTLY
+            if (glowPrimaryRef.current) {
+                const size = 500 + smoothedPulse.current * 1500;
+                const opacity = listening
+                    ? 0.2 + smoothedPulse.current * 0.65
+                    : 0.08 + smoothedPulse.current * 0.15;
+                const scale = 1 + smoothedPulse.current * 0.25;
+
+                glowPrimaryRef.current.style.width = `${size}px`;
+                glowPrimaryRef.current.style.height = `${size}px`;
+                glowPrimaryRef.current.style.backgroundColor = listening
+                    ? `rgba(60, 140, 255, ${opacity})`
+                    : `rgba(255, 160, 40, ${opacity})`;
+                glowPrimaryRef.current.style.transform = `translate(-50%, -50%) scale(${scale})`;
+            }
+
+            if (glowSecondaryRef.current) {
+                const size = 300 + smoothedHighs.current * 1000;
+                const opacity = listening
+                    ? 0.25 + smoothedHighs.current * 0.7
+                    : 0.1 + smoothedHighs.current * 0.2;
+                const scale = 1 + smoothedHighs.current * 0.35;
+
+                glowSecondaryRef.current.style.width = `${size}px`;
+                glowSecondaryRef.current.style.height = `${size}px`;
+                glowSecondaryRef.current.style.backgroundColor = listening
+                    ? `rgba(100, 200, 255, ${opacity})`
+                    : `rgba(255, 255, 255, ${opacity})`;
+                glowSecondaryRef.current.style.transform = `translate(-50%, -50%) scale(${scale})`;
             }
 
             renderer.render(scene, camera);
@@ -252,23 +263,23 @@ const App = () => {
 
             {/* BACKGROUND GLOWS */}
             <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[160px] pointer-events-none transition-all duration-150 ease-out"
+                ref={glowPrimaryRef}
+                className="absolute top-1/2 left-1/2 rounded-full blur-[200px] pointer-events-none"
                 style={{
-                    width: `${400 + smoothedPulse.current * 1000}px`,
-                    height: `${400 + smoothedPulse.current * 1000}px`,
-                    backgroundColor: isListening && smoothedPulse.current > 0.05
-                        ? `rgba(60, 140, 255, ${0.1 + smoothedPulse.current * 0.3})`
-                        : `rgba(255, 160, 40, ${0.05 + smoothedPulse.current * 0.1})`
+                    width: '500px',
+                    height: '500px',
+                    backgroundColor: 'rgba(255, 160, 40, 0.08)',
+                    transform: 'translate(-50%, -50%)'
                 }}
             />
             <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px] pointer-events-none transition-all duration-100 ease-out"
+                ref={glowSecondaryRef}
+                className="absolute top-1/2 left-1/2 rounded-full blur-[140px] pointer-events-none"
                 style={{
-                    width: `${200 + smoothedHighs.current * 600}px`,
-                    height: `${200 + smoothedHighs.current * 600}px`,
-                    backgroundColor: isListening && smoothedHighs.current > 0.05
-                        ? `rgba(100, 200, 255, ${0.1 + smoothedHighs.current * 0.3})`
-                        : `rgba(255, 255, 255, ${0.05 + smoothedHighs.current * 0.1})`
+                    width: '300px',
+                    height: '300px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    transform: 'translate(-50%, -50%)'
                 }}
             />
         </div>
